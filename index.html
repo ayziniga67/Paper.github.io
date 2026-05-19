@@ -3,416 +3,435 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>leakbridge papers</title>
-  <script src="https://unpkg.com/tesseract.js@2.1.5/dist/tesseract.min.js"></script>
-  <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;700&family=Outfit:wght@300;400;600&display=swap" rel="stylesheet">
+  <title>Leakbridge - Full Viewport Lazy Snap Engine</title>
+  <script src="https://unpkg.com/tesseract.js@4.0.2/dist/tesseract.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.4.120/pdf.min.js"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700&display=swap" rel="stylesheet">
   <style>
-    :root {
-      --bg-color: #1a2a3a;
-      --card-bg: #004d4d;
-      --text-main: #ffffff;
-      --accent-teal: #006666;
-      --progress-bg: rgba(74, 90, 106, 1.0);
-    }
-
-    * { box-sizing: border-box; margin: 0; padding: 0; }
-
-    body {
-      font-family: 'Outfit', sans-serif;
-      background-color: var(--bg-color);
-      color: var(--text-main);
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      min-height: 100vh;
-      padding: 40px 20px;
-    }
-
+    :root { --bg: #0f172a; --card: #1e293b; --accent: #38bdf8; --text: #f8fafc; --nav-btn: #334155; }
+    * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Outfit', sans-serif; }
+    body { background: var(--bg); color: var(--text); padding: 15px; display: flex; flex-direction: column; align-items: center; min-height: 100vh; }
+    .container { width: 100%; max-width: 450px; }
+    
     .header { text-align: center; margin-bottom: 20px; }
     .header h1 { font-family: 'Montserrat', sans-serif; font-size: 1.4rem; letter-spacing: 2px; font-weight:400 }
     .header h2 { font-family: 'Montserrat', sans-serif; font-size: 0.8rem; letter-spacing: 2px; font-weight:200 }
 
-    #video-wrap {
-      width: 100%;
-      max-width: 340px;
-      height: 220px;
-      background: var(--card-bg);
-      border-radius: 15px;
-      position: relative;
-      overflow: hidden;
-      display: flex;
-      justify-content: center;
-      align-items: center;
-      margin-bottom: 20px;
-      border: 1px solid rgba(255,255,255,0.1);
-    }
+    /* Expanded Structural Input Controls Dashboard */
+    .settings-bar { width: 100%; background: var(--card); padding: 10px; border-radius: 12px; margin-bottom: 15px; border: 1px solid rgba(255,255,255,0.05); }
+    .input-row { display: flex; justify-content: space-between; gap: 6px; width: 100%; }
+    .input-group { display: flex; flex-direction: column; align-items: center; gap: 4px; flex: 1; }
+    .settings-bar label { font-size: 0.65rem; font-weight: 700; color: var(--accent); text-transform: uppercase; letter-spacing: 0.5px; }
+    .settings-bar input { background: #0f172a; border: 1px solid #334155; color: white; padding: 6px 4px; border-radius: 6px; text-align: center; font-weight: 600; font-size: 0.85rem; width: 100%; outline: none; }
 
-    video, #uploaded-img { width: 100%; height: 100%; object-fit: cover; display: none; }
-    #uploaded-img { object-fit: contain; background: #0b1926; }
+    #media-box { width: 100%; aspect-ratio: 16 / 9; background: #000; border-radius: 12px; overflow: hidden; position: relative; border: 1px solid rgba(255,255,255,0.1); margin-bottom: 15px; }
+    video, canvas { width: 100%; height: 100%; object-fit: cover; }
+    
+    #overlay { position: absolute; top:0; left:0; width:100%; height:100%; background: rgba(15, 23, 42, 0.96); display: none; flex-direction: column; justify-content: center; align-items: center; z-index: 50; }
+    .progress-wrap { width: 70%; height: 6px; background: #334155; border-radius: 10px; margin-top: 15px; overflow: hidden; }
+    #progress-fill { width: 0%; height: 100%; background: var(--accent); transition: width 0.3s; }
 
-    #aim-box {
-      position: absolute;
-      width: 85%;
-      height: 60px;
-      border: 2px solid #ffffff;
-      border-radius: 10px;
-      pointer-events: none;
-      z-index: 5;
-      display: none;
-      box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.4);
-    }
+    .btn-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 15px; }
+    .btn { padding: 14px; border-radius: 10px; border: none; font-weight: 700; cursor: pointer; transition: 0.2s; }
+    .btn-main { background: var(--accent); color: #0f172a; grid-column: span 2; font-size: 1rem; }
+    .btn-sub { background: #334155; color: white; font-size: 0.8rem; }
 
-    .action-row {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 8px;
-      margin-bottom: 30px;
-      width: 100%;
-      max-width: 340px;
-    }
+    #log { font-size: 0.8rem; color: #94a3b8; text-align: center; margin-bottom: 5px; }
+    #debug-read { font-size: 0.6rem; color: #475569; text-align: center; margin-bottom: 10px; font-family: monospace; overflow: hidden; height: 12px; }
+    
+    /* Native Document Display Workspace */
+    .viewer-wrap { display: none; width: 100%; margin-top: 10px; background: var(--card); border-radius: 12px; border: 1px solid rgba(255,255,255,0.05); padding: 12px; }
+    #info-bar { display: flex; justify-content: space-between; align-items: center; font-size: 0.8rem; margin-bottom: 10px; padding: 0 4px; }
+    
+    /* Horizontal Navigation Picker Bar */
+    #pdf-nav-bar { width: 100%; display: flex; gap: 6px; overflow-x: auto; padding-bottom: 8px; margin-bottom: 12px; scroll-behavior: smooth; -webkit-overflow-scrolling: touch; }
+    #pdf-nav-bar::-webkit-scrollbar { height: 4px; }
+    #pdf-nav-bar::-webkit-scrollbar-thumb { background: #334155; border-radius: 10px; }
+    .nav-jump-btn { background: var(--nav-btn); color: white; border: none; padding: 6px 12px; border-radius: 6px; font-size: 0.75rem; font-weight: 700; cursor: pointer; flex-shrink: 0; transition: 0.2s; }
+    .nav-jump-btn.active { background: var(--accent); color: #0f172a; }
 
-    .btn-action {
-      background: transparent;
-      color: white;
-      border: 1.5px solid #ffffff;
-      padding: 12px 0;
-      border-radius: 6px;
-      font-size: 0.85rem;
-      font-weight:300;
-      cursor: pointer;
-      text-align: center;
-      font-family: 'Outfit', sans-serif;
-      transition: 0.2s;
-    }
-    .btn-action:active { background: rgba(255,255,255,0.1); transform: scale(0.96); }
-
-    .output-section { width: 100%; max-width: 340px; }
-
-    .section-group {
-      background: rgba(0, 77, 77, 0.4);
-      padding: 15px;
-      border-radius: 12px;
-      margin-bottom: 15px;
-      border: 3px solid #ffffff;
-      position: relative;
-    }
-
-    .section-title {
-      font-family: 'Montserrat', sans-serif;
-      font-size: 0.75rem;
-      text-transform: uppercase;
-      letter-spacing: 1px;
-      opacity: 0.6;
-      margin-bottom: 10px;
-      display: block;
-    }
-
-    .subject-sub { font-size: 0.8rem; opacity: 0.5; display: block; margin-bottom: 4px; }
-    #result-text { font-size: 1.1rem; font-weight: 600; display: block; line-height: 1.3; }
-
-    .pdf-container { display: none; gap: 8px; margin-top: 12px; }
-
-    .pdf-btn {
-      flex: 1;
-      background: #ffffff;
-      color: #004d4d;
-      padding: 12px 5px;
-      text-align: center;
-      border-radius: 8px;
-      text-decoration: none;
-      font-weight: 700;
-      font-size: 0.8rem;
-    }
-
-    .toggle-btn {
-      background: transparent;
-      border: 1px solid rgba(255,255,255,0.4);
-      color: white;
-      padding: 4px 10px;
-      border-radius: 20px;
-      font-size: 0.6rem;
-      cursor: pointer;
-      position: absolute;
-      right: 15px;
-      top: 12px;
-    }
-    .toggle-btn.off { opacity: 0.4; }
-
-    .progress-container { width: 100%; height: 2px; background: var(--progress-bg); margin-top: 10px; }
-    #bar { height: 100%; background: #ffffff; width: 0%; transition: width 0.2s; }
-
-    canvas { display: none; }
+    /* Strict 1-Page Native CSS Scroll Snap-Track Viewport */
+    #pdf-sections-track { width: 100%; height: 520px; display: flex; flex-direction: column; gap: 0px; overflow-y: scroll; scroll-snap-type: y mandatory; scroll-behavior: smooth; -webkit-overflow-scrolling: touch; border-radius: 8px; background: #0f172a; border: 1px solid rgba(255,255,255,0.1); }
+    .page-section { width: 100%; height: 100%; min-height: 100%; scroll-snap-align: start; scroll-snap-stop: always; flex-shrink: 0; position: relative; display: flex; align-items: center; justify-content: center; background: #0f172a; overflow: hidden; }
+    .page-badge { position: absolute; top: 12px; left: 12px; background: rgba(15, 23, 42, 0.85); color: var(--accent); font-size: 0.65rem; font-weight: 700; padding: 4px 8px; border-radius: 4px; z-index: 10; border: 1px solid rgba(255,255,255,0.05); }
+    
+    /* Strict Layout Canvas Scaling Rules */
+    .page-section canvas { max-width: 100%; max-height: 100%; width: auto; height: auto; display: block; background: white; image-rendering: -webkit-optimize-contrast; }
+    .loading-placeholder { font-size: 0.8rem; color: #475569; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; animation: pulse 1.5s infinite; }
+    @keyframes pulse { 0%, 100% { opacity: 0.4; } 50% { opacity: 0.9; } }
   </style>
 </head>
 <body>
-
+  
   <div class="header">
     <h1>Leakbridge Papers</h1>
-    <h2>crazy how the world works</h2>
+    <h2>only takes code like: ON/2021/22/Q5,S23/13/Q26</h2>
   </div>
 
-  <div id="video-wrap">
-    <video id="video" autoplay playsinline muted></video>
-    <img id="uploaded-img">
-    <div id="aim-box"></div>
-  </div>
-
-  <div style="width: 100%; max-width: 340px; margin-bottom: 15px;">
-    <input type="text" id="manual-sub" placeholder="Subject Code (e.g. 0580)" 
-           style="width: 100%; padding: 14px; border-radius: 8px; border: 2px solid #ffffff; background: rgba(0, 77, 77, 0.3); color: white; text-align: center; font-family: 'Outfit', sans-serif; font-size: 1rem; outline: none;">
-  </div>
-
-  <div class="action-row">
-    <button class="btn-action" id="cam-btn" onclick="toggleCamera()">Open Camera</button>
-    <button class="btn-action" id="main-btn" onclick="scan()">Capture & Scan</button>
-    <label class="btn-action" for="file-upload" style="cursor: pointer; display: flex; align-items: center; justify-content: center;">Upload</label>
-    <input type="file" id="file-upload" accept="image/*" style="display: none;" onchange="handleFileUpload(event)">
-    <button class="btn-action" onclick="handleManualPaste()">Paste</button>
-  </div>
-
-  <div class="output-section">
-    <div class="section-group">
-      <span class="section-title">For Rove</span>
-      <button class="toggle-btn off" id="copy-toggle" onclick="toggleCopy()">Auto-Copy Off</button>
-      <span class="subject-sub" id="subject-display">Subject: ----</span>
-      <span id="result-text">Ready...</span>
-    </div>
-
-    <div class="section-group">
-      <span class="section-title">For Papa Cambridge</span>
-      <div id="pdf-container" class="pdf-container">
-        <a id="ms-link" class="pdf-btn" target="_blank">MS PDF</a>
-        <a id="qp-link" class="pdf-btn" target="_blank">QP PDF</a>
+<div class="container">
+  <div class="settings-bar">
+    <div class="input-row">
+      <div class="input-group">
+        <label>Subject</label>
+        <input type="text" id="sub-input" value="9702" maxlength="4">
+      </div>
+      <div class="input-group">
+        <label>Year</label>
+        <input type="text" id="yr-input" value="23" maxlength="2">
+      </div>
+      <div class="input-group">
+        <label>Series</label>
+        <input type="text" id="seas-input" value="s" maxlength="1">
+      </div>
+      <div class="input-group">
+        <label>Paper</label>
+        <input type="text" id="pap-input" value="21" maxlength="2">
+      </div>
+      <div class="input-group">
+        <label>Target Q</label>
+        <input type="text" id="q-input" value="1" maxlength="2">
       </div>
     </div>
-
-    <div class="progress-container"><div id="bar"></div></div>
   </div>
 
-  <canvas id="canvas"></canvas>
+  <div id="media-box">
+    <video id="video" autoplay playsinline muted></video>
+    <canvas id="canvas" style="display:none;"></canvas>
+    <div id="overlay">
+      <div id="status-txt" style="font-weight:700; color:var(--accent);">INITIALIZING...</div>
+      <div class="progress-wrap"><div id="progress-fill"></div></div>
+    </div>
+  </div>
 
-  <script>
-    const video = document.getElementById('video');
-    const uploadedImg = document.getElementById('uploaded-img');
-    const canvas = document.getElementById('canvas');
+  <div id="log">Ready to Scan Paper</div>
+  <div id="debug-read"></div>
+
+  <div class="btn-grid">
+    <button class="btn btn-main" onclick="doCapture()">CAPTURE & ANALYZE</button>
+    <button class="btn btn-sub" onclick="runNativeRenderPipeline()">FETCH DIRECT</button>
+    <label class="btn btn-sub" style="text-align:center; cursor:pointer;">UPLOAD<input type="file" hidden accept="image/*" onchange="doUpload(event)"></label>
+  </div>
+
+  <div class="viewer-wrap" id="viewer-wrap">
+    <div id="info-bar">
+        <span id="paper-id" style="color:var(--accent); font-weight:bold;"></span>
+        <span id="match-status" style="font-size:0.75rem; color:#94a3b8;"></span>
+    </div>
+    <div id="pdf-nav-bar"></div>
+    <div id="pdf-sections-track"></div>
+  </div>
+</div>
+
+<script>
+  pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.4.120/pdf.worker.min.js';
+  
+  const video = document.getElementById('video');
+  const canvas = document.getElementById('canvas');
+  const overlay = document.getElementById('overlay');
+  const prog = document.getElementById('progress-fill');
+  
+  let ocrWorker = null;
+  let currentPdf = null;
+  let scrollObserver = null;
+
+  async function setupOCR() {
+    if (!ocrWorker) {
+      ocrWorker = await Tesseract.createWorker();
+      await ocrWorker.loadLanguage('eng');
+      await ocrWorker.initialize('eng');
+    }
+  }
+  setupOCR();
+
+  async function initCam() {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment', width: { ideal: 1280 } } });
+      video.srcObject = stream;
+      video.style.display = 'block'; canvas.style.display = 'none';
+    } catch(e) { document.getElementById('log').innerText = "Static file mode active."; }
+  }
+  initCam();
+
+  function processImage() {
     const ctx = canvas.getContext('2d');
-    const resultEl = document.getElementById('result-text');
-    const subjectEl = document.getElementById('subject-display');
-    const pdfContainer = document.getElementById('pdf-container');
-    const msLink = document.getElementById('ms-link');
-    const qpLink = document.getElementById('qp-link');
-    const mainBtn = document.getElementById('main-btn');
-    const camBtn = document.getElementById('cam-btn');
-    const aimBox = document.getElementById('aim-box');
-    const bar = document.getElementById('bar');
-    const copyToggle = document.getElementById('copy-toggle');
-    
-    let stream = null, worker = null, isCameraOn = false, currentMode = 'none', autoCopy = false;
+    const scale = video.videoWidth > 1200 ? 1200 / video.videoWidth : 1;
+    canvas.width = video.videoWidth * scale;
+    canvas.height = video.videoHeight * scale;
+    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+    video.style.display = 'none'; canvas.style.display = 'block';
+    processPipeline();
+  }
 
-    async function initWorker() {
-      if (worker) return;
-      worker = Tesseract.createWorker({ logger: m => { if(m.status === 'recognizing text') bar.style.width = (m.progress * 100) + '%'; } });
-      await worker.load(); await worker.loadLanguage('eng'); await worker.initialize('eng');
-      await worker.setParameters({ tessedit_char_whitelist: '0123456789MSWQPFJONmswqpfjon/_ ' });
-    }
+  function doCapture() {
+    if(video.videoWidth === 0) return alert("Camera resource warming up.");
+    processImage();
+  }
 
-    function parseCode(text) {
-      const manualSub = document.getElementById('manual-sub').value.trim();
+  function doUpload(e) {
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      const img = new Image();
+      img.onload = () => {
+        canvas.width = img.width; canvas.height = img.height;
+        canvas.getContext('2d').drawImage(img, 0, 0);
+        video.style.display = 'none'; canvas.style.display = 'block';
+        processPipeline();
+      };
+      img.src = ev.target.result;
+    };
+    if(e.target.files[0]) reader.readAsDataURL(e.target.files[0]);
+  }
+
+  async function processPipeline() {
+    overlay.style.display = 'flex';
+    updateProg(15, "Analyzing Document Geometry...");
+
+    try {
+      await setupOCR();
+      updateProg(40, "Extracting Core Identifiers...");
+      const { data: { text } } = await ocrWorker.recognize(canvas);
       
-      // 1. Clean the text AND instantly nuke the Question number (e.g. Q4)
-      let clean = text.toUpperCase().replace(/[^A-Z0-9_]/g, ' ').trim();
-      clean = clean.replace(/\bQ\s*\d+\b/g, '').trim(); 
-      
-      let resText = "";
-      let pap = "", varnt = "", seas = "", yr = "", sub = manualSub;
-      let matchedStrict = false;
+      const clean = text.toUpperCase().replace(/\s+/g, '');
+      document.getElementById('debug-read').innerText = "OCR String: " + clean.substring(0, 35);
 
-      // --- 1. STRICT MATCHING ---
-      const mUnder = clean.match(/(\d{4})?_?([MSW])(\d{2})_(QP|MS)_(\d)(\d)?/);
-      const mShort = clean.match(/([MSW])\s*(\d{2})\s*[_ ]?\s*(QP|MS)\s*[_ ]?\s*(\d)(\d)?/);
-      const mSlash = clean.match(/(\d{4})?\s*([1-8])\s*([1-6])?\s*(M\s*J|O\s*N|F\s*M|S|W|M)\s*(?:20)?(\d{2})/);
+      const regex = /([FMSW]|MJ|ON|FM)(?:\/)?(\d{4}|\d{2})[\/|I1\s-]?(\d{1,2})(?:[\/|I1\s-]?Q(\d+))?/i;
+      const match = clean.match(regex);
 
-      if (mUnder || mShort) {
-        const match = mUnder || mShort;
-        if (!sub && mUnder && mUnder[1]) sub = mUnder[1];
-        seas = match[mUnder ? 2 : 1].toLowerCase(); 
-        yr = match[mUnder ? 3 : 2]; 
-        pap = match[mUnder ? 5 : 4]; 
-        varnt = match[mUnder ? 6 : 5] || "";
-        matchedStrict = true;
-      } 
-      else if (mSlash) {
-        if (!sub && mSlash[1]) sub = mSlash[1];
-        pap = mSlash[2];
-        varnt = mSlash[3] || "";
-        let seasStr = mSlash[4].replace(/\s/g, ''); 
-        yr = mSlash[5];
-        if (seasStr === 'MJ' || seasStr === 'S') seas = 's';
-        else if (seasStr === 'ON' || seasStr === 'W') seas = 'w';
-        else if (seasStr === 'FM' || seasStr === 'M') seas = 'm';
-        matchedStrict = true;
-      }
+      if (match) {
+        let rawSession = match[1];
+        let computedSeas = "s";
+        if (rawSession === "MJ" || rawSession === "J" || rawSession === "S") computedSeas = "s";
+        else if (rawSession === "ON" || rawSession === "W") computedSeas = "w";
+        else if (rawSession === "FM" || rawSession === "M" || rawSession === "F") computedSeas = "m";
+        else computedSeas = rawSession.toLowerCase();
 
-      // --- 2. SMART FALLBACK ---
-      if (!matchedStrict) {
-        const smartClean = clean.replace(/_/g, ' ').replace(/\s+/g, ' '); 
-        if (!sub) {
-            let subMatch = smartClean.match(/\b([0789]\d{3})\b/);
-            if (subMatch) sub = subMatch[1];
-        }
-        let seasYrMatch = smartClean.match(/\b(M\s*J|O\s*N|F\s*M|S|W|M)\s*(?:20)?(\d{2})\b/);
-        if (seasYrMatch) {
-            let sStr = seasYrMatch[1].replace(/\s/g, '');
-            if (sStr === 'MJ' || sStr === 'S') seas = 's';
-            else if (sStr === 'ON' || sStr === 'W') seas = 'w';
-            else if (sStr === 'FM' || sStr === 'M') seas = 'm';
-            yr = seasYrMatch[2];
-        } else {
-            let fullYear = smartClean.match(/\b(?:20)(\d{2})\b/);
-            if (fullYear) yr = fullYear[1];
-            if (/\b(M\s*J|S)\b/.test(smartClean)) seas = 's';
-            else if (/\b(O\s*N|W)\b/.test(smartClean)) seas = 'w';
-            else if (/\b(F\s*M|M)\b/.test(smartClean)) seas = 'm';
-        }
-        let qpMatch = smartClean.match(/\b(?:QP|MS|PAPER)\s*(\d{1,2})\b/);
-        let papBeforeSeas = smartClean.match(/\b(\d{1,2})\s*(?:M\s*J|O\s*N|F\s*M|S|W|M)\b/);
-        if (qpMatch) {
-            pap = qpMatch[1][0];
-            varnt = qpMatch[1].length > 1 ? qpMatch[1][1] : "";
-        } else if (papBeforeSeas) {
-            pap = papBeforeSeas[1][0];
-            varnt = papBeforeSeas[1].length > 1 ? papBeforeSeas[1][1] : "";
-        } else {
-            let looseNums = smartClean.match(/\b\d{1,2}\b/g) || [];
-            looseNums = looseNums.filter(n => n !== yr);
-            if (looseNums.length > 0) {
-                pap = looseNums[0][0];
-                varnt = looseNums[0].length > 1 ? looseNums[0][1] : "";
-            }
-        }
-      }
-
-      // --- 3. COMPILATION ---
-      sub = sub || "9709"; 
-      if (seas && pap && yr) {
-        let yrInt = parseInt(yr);
-        let sName = (seas === 'm') ? "March" : (seas === 's' ? "Summer" : "Winter");
-        let fullYearStr = (yrInt > 50 ? "19" : "20") + yr;
-        let finalVarnt = (yrInt < 10) ? "" : (varnt || "1");
-
-        resText = `Paper ${pap}${finalVarnt ? " Variant " + finalVarnt : ""} ${sName} ${fullYearStr}`;
-        subjectEl.textContent = `Subject: ${sub}`;
-        resultEl.textContent = resText;
-
-        const fileSuffix = pap + finalVarnt;
-        msLink.href = `https://pastpapers.papacambridge.com/directories/CAIE/CAIE-pastpapers/upload/${sub}_${seas}${yr}_ms_${fileSuffix}.pdf`;
-        qpLink.href = `https://pastpapers.papacambridge.com/directories/CAIE/CAIE-pastpapers/upload/${sub}_${seas}${yr}_qp_${fileSuffix}.pdf`;
+        let rawYear = match[2];
+        let computedYr = rawYear.length === 4 ? rawYear.substring(2) : rawYear;
+        let computedPap = match[3];
         
-        pdfContainer.style.display = 'flex';
-        if(autoCopy) navigator.clipboard.writeText(resText);
-      } else {
-        resultEl.textContent = "No valid code found";
-        pdfContainer.style.display = 'none';
+        // Populate inputs so user has full edit control over OCR outputs
+        document.getElementById('yr-input').value = computedYr;
+        document.getElementById('seas-input').value = computedSeas;
+        document.getElementById('pap-input').value = computedPap;
+        if (match[4]) document.getElementById('q-input').value = match[4];
       }
+    } catch(err) {
+      console.warn("OCR non-blocking bypass active.");
     }
+    
+    // Proceed to rendering using whatever current configuration dashboard state holds
+    await runNativeRenderPipeline();
+  }
 
-    async function toggleCamera() {
-      if (isCameraOn) {
-        if (stream) stream.getTracks().forEach(t => t.stop());
-        video.style.display = 'none';
-        aimBox.style.display = 'none';
-        camBtn.textContent = "Open Camera";
-        mainBtn.textContent = "Capture & Scan";
-        isCameraOn = false;
-        currentMode = (uploadedImg.style.display === 'block') ? 'image' : 'none';
-      } else {
-        await initWorker();
-        try {
-          stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment', width: { ideal: 1280 } } });
-          video.srcObject = stream;
-          video.style.display = 'block';
-          uploadedImg.style.display = 'none';
-          aimBox.style.display = 'block';
-          camBtn.textContent = "Close Camera";
-          isCameraOn = true;
-          currentMode = 'camera';
-          if(video.paused) video.play();
-        } catch(e) { alert("Camera Access Denied"); }
-      }
-    }
+  async function fetchPDFResilient(targetUrl) {
+    const proxies = [
+      `https://api.allorigins.win/raw?url=${encodeURIComponent(targetUrl)}`,
+      `https://corsproxy.io/?${encodeURIComponent(targetUrl)}`,
+      `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(targetUrl)}`
+    ];
 
-    async function scan() {
-      if (currentMode === 'none') { alert("Open camera or upload image first"); return; }
-      if (currentMode === 'camera' && video.paused) {
-        video.play();
-        mainBtn.textContent = "Capture & Scan";
-        bar.style.width = '0%';
-        return;
-      }
-      await initWorker();
-      if (currentMode === 'camera') video.pause(); 
-      mainBtn.disabled = true;
-      mainBtn.textContent = "Scanning...";
-      
-      const source = currentMode === 'image' ? uploadedImg : video;
-      let sw = source.naturalWidth || source.videoWidth;
-      let sh = source.naturalHeight || source.videoHeight;
-      let sx = 0, sy = 0;
-      
-      if (currentMode === 'camera') {
-        const wrapRatio = 340 / 220;
-        let drawW = sw, drawH = sh;
-        if ((sw/sh) > wrapRatio) { drawW = sh * wrapRatio; sx = (sw - drawW) / 2; }
-        else { drawH = sw / wrapRatio; sy = (sh - drawH) / 2; }
-        sx += drawW * 0.075; sy += drawH * 0.36; sw = drawW * 0.85; sh = drawH * 0.27;
-      }
-
-      canvas.width = sw * 4; canvas.height = sh * 4;
-      ctx.filter = 'grayscale(100%) contrast(350%) brightness(110%)'; 
-      ctx.drawImage(source, sx, sy, sw, sh, 0, 0, canvas.width, canvas.height);
-      
-      worker.recognize(canvas).then(({ data: { text } }) => {
-        parseCode(text);
-        mainBtn.disabled = false;
-        mainBtn.textContent = currentMode === 'camera' ? "Resume Camera" : "Scan Image";
-        bar.style.width = '0%';
-      });
-    }
-
-    async function handleManualPaste() {
+    let lastError = null;
+    for (let i = 0; i < proxies.length; i++) {
       try {
-        const text = await navigator.clipboard.readText();
-        if (text) {
-          bar.style.width = '100%';
-          parseCode(text);
-          setTimeout(() => { bar.style.width = '0%'; }, 600);
-        }
-      } catch (e) { alert("Enable clipboard permissions"); }
-    }
-
-    function toggleCopy() {
-      autoCopy = !autoCopy;
-      copyToggle.textContent = autoCopy ? "Auto-Copy On" : "Auto-Copy Off";
-      copyToggle.classList.toggle('off', !autoCopy);
-    }
-
-    function handleFileUpload(event) {
-      if (event.target.files[0]) {
-        const url = URL.createObjectURL(event.target.files[0]);
-        uploadedImg.src = url;
-        uploadedImg.onload = () => {
-          if (isCameraOn) toggleCamera();
-          video.style.display = 'none';
-          uploadedImg.style.display = 'block';
-          currentMode = 'image';
-          mainBtn.textContent = "Scan Image";
-        }
+        const task = pdfjsLib.getDocument(proxies[i]);
+        const pdf = await task.promise;
+        return pdf;
+      } catch (e) {
+        console.warn(`Proxy node ${i + 1} bypassed.`);
+        lastError = e;
       }
     }
+    throw lastError || new Error("All proxy pathways rejected file package stream.");
+  }
 
-    document.getElementById('manual-sub').addEventListener('input', (e) => {
-      if (e.target.value.length > 5) parseCode(e.target.value);
-    });
-  </script>
+  async function runNativeRenderPipeline() {
+    // Read input values explicitly to handle camera-to-manual changes flawlessly
+    const sub = document.getElementById('sub-input').value.trim();
+    const yr = document.getElementById('yr-input').value.trim();
+    const seas = document.getElementById('seas-input').value.trim().toLowerCase();
+    const pap = document.getElementById('pap-input').value.trim();
+    const targetQ = document.getElementById('q-input').value.trim() || "1";
+
+    const msUrl = `https://pastpapers.papacambridge.com/directories/CAIE/CAIE-pastpapers/upload/${sub}_${seas}${yr}_ms_${pap}.pdf`;
+
+    document.getElementById('viewer-wrap').style.display = 'block';
+    document.getElementById('paper-id').innerText = `${sub} | ${seas.toUpperCase()}${yr} | P${pap} | Q${targetQ}`;
+    
+    const navBar = document.getElementById('pdf-nav-bar');
+    const track = document.getElementById('pdf-sections-track');
+    
+    navBar.innerHTML = '';
+    track.innerHTML = ''; 
+    if(scrollObserver) scrollObserver.disconnect();
+
+    const loadingPhrases = [
+      "leaking the paper",
+      "giving the paper to redditors",
+      "ruiningcareers..."
+    ];
+    let phraseIndex = 0;
+    
+    updateProg(60, loadingPhrases[phraseIndex]);
+
+    // Start a repeating timer that changes the text every 10 seconds
+    const loadingInterval = setInterval(() => {
+      if (document.getElementById('overlay').style.display !== 'none') {
+        phraseIndex = (phraseIndex + 1) % loadingPhrases.length;
+        document.getElementById('status-txt').innerText = loadingPhrases[phraseIndex];
+      } else {
+        clearInterval(loadingInterval);
+      }
+    }, 10000);
+    
+    try {
+      currentPdf = await fetchPDFResilient(msUrl);
+      
+      let matchedPage = 2; 
+      let foundMatch = false;
+      let questionZoneStarted = false;
+
+      // STEP 1: DYNAMIC QUESTION-ZONE INDEX EXTRACTOR
+      for (let i = 2; i <= currentPdf.numPages; i++) {
+        if (foundMatch) break;
+        const page = await currentPdf.getPage(i);
+        const content = await page.getTextContent();
+        
+        // Flatten all text on the page to check for layout structural rules
+        const fullPageText = content.items.map(item => item.str).join(' ').toUpperCase();
+        
+        // Skip common boilerplate instructions headers explicitly
+        if (fullPageText.includes("GENERIC MARKING PRINCIPLE") || 
+            fullPageText.includes("MARKING PRINCIPLES") || 
+            fullPageText.includes("INSTRUCTIONS TO EXAMINERS")) {
+          continue; 
+        }
+
+        // Activate the question zone if margin digits or matching indicators are captured
+        if (!questionZoneStarted) {
+          const hasMarginDigits = content.items.some(item => {
+            const itemX = item.transform ? item.transform[4] : 0;
+            return (itemX > 15 && itemX < 95) && /^\d+$/.test(item.str.trim());
+          });
+
+          if (hasMarginDigits || fullPageText.includes("QUESTION")) {
+            questionZoneStarted = true; 
+          }
+        }
+
+        // If we haven't officially arrived at the question papers yet, skip parsing numbers
+        if (!questionZoneStarted) continue;
+
+        // Scan page layout items for our exact Target Q coordinates
+        for (let item of content.items) {
+          const itemX = item.transform ? item.transform[4] : 0;
+          
+          if (itemX > 15 && itemX < 95) { 
+            const rawStr = item.str.trim();
+            
+            if (rawStr.toUpperCase().includes("PAGE") || rawStr.includes("[") || rawStr.includes("]")) {
+              continue; 
+            }
+
+            const cleanedText = rawStr.replace(/\D/g, '');
+            if (cleanedText === targetQ && /^\d+$/.test(rawStr)) {
+              matchedPage = i;
+              foundMatch = true;
+              break;
+            }
+          }
+        }
+      }
+
+      // STEP 2: SETUP PRECISE INTERSECTION LAZY OBSERVER 
+      scrollObserver = new IntersectionObserver((entries) => {
+        entries.forEach(entry => {
+          if (entry.isIntersecting) {
+            const pageNum = parseInt(entry.target.dataset.page);
+            executeLazyRender(pageNum);
+            updateActiveNavHighlight(pageNum);
+          }
+        });
+      }, { root: track, threshold: 0.1, rootMargin: "50px 0px" });
+
+      // STEP 3: CONSTRUCT STRUCTURAL SHELLS
+      for (let i = 1; i <= currentPdf.numPages; i++) {
+        const navBtn = document.createElement('button');
+        navBtn.className = 'nav-jump-btn' + (i === matchedPage ? ' active' : '');
+        navBtn.id = `nav-btn-${i}`;
+        navBtn.innerText = `Pg ${i}`;
+        navBtn.onclick = () => jumpToSection(i);
+        navBar.appendChild(navBtn);
+
+        const section = document.createElement('div');
+        section.id = `page-sec-${i}`;
+        section.className = 'page-section';
+        section.dataset.page = i;
+        section.innerHTML = `<div class="page-badge">PAGE ${i}</div><span class="loading-placeholder" id="loader-txt-${i}">Scroll to View</span>`;
+        
+        track.appendChild(section);
+        scrollObserver.observe(section);
+      }
+
+      document.getElementById('match-status').innerText = `Focused Page ${matchedPage}`;
+      updateProg(100, "Sync Complete.");
+      
+      setTimeout(() => {
+        overlay.style.display = 'none';
+        jumpToSection(matchedPage);
+      }, 150);
+
+    } catch (err) {
+      document.getElementById('match-status').innerText = "Load Failed";
+      alert(`Could not open document.\n\nGenerated Link Attempted:\n${msUrl}\n\nPlease check your parameter configuration fields.`);
+      overlay.style.display = 'none';
+    }
+  }
+
+  // STEP 4: TRUE LAZY RENDER COMPLIANCE
+  async function executeLazyRender(pageNum) {
+    if (!currentPdf) return;
+    try {
+      const section = document.getElementById(`page-sec-${pageNum}`);
+      if (!section || section.querySelector('canvas')) return;
+
+      const page = await currentPdf.getPage(pageNum);
+      const renderScale = window.devicePixelRatio || 2.0;
+      const viewport = page.getViewport({ scale: renderScale });
+      
+      const pageCanvas = document.createElement('canvas');
+      const ctx = pageCanvas.getContext('2d');
+      
+      pageCanvas.height = viewport.height;
+      pageCanvas.width = viewport.width;
+
+      await page.render({ canvasContext: ctx, viewport: viewport }).promise;
+      
+      const placeholder = document.getElementById(`loader-txt-${pageNum}`);
+      if (placeholder) placeholder.remove();
+      section.appendChild(pageCanvas);
+    } catch (e) {
+      console.error(`Dynamic viewport painting error on page ${pageNum}:`, e);
+    }
+  }
+
+  function jumpToSection(pageIndex) {
+    const targetSection = document.getElementById(`page-sec-${pageIndex}`);
+    if (targetSection) {
+      targetSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      updateActiveNavHighlight(pageIndex);
+    }
+  }
+
+  function updateActiveNavHighlight(pageIndex) {
+    document.querySelectorAll('.nav-jump-btn').forEach(btn => btn.classList.remove('active'));
+    const activeBtn = document.getElementById(`nav-btn-${pageIndex}`);
+    if(activeBtn) {
+      activeBtn.classList.add('active');
+      activeBtn.scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' });
+    }
+  }
+
+  document.getElementById('status-txt').innerText = msg;
+</script>
 </body>
 </html>
